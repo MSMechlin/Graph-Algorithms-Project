@@ -1,0 +1,21 @@
+load csv with headers from
+'file:///sentences.csv' as row
+merge (s:sentence{content:row.content})
+
+load csv with headers from
+'file:///relations.csv' as row
+with row
+match(n:sentence)
+where id(n) = toInteger(row.ID)
+unwind split(row.relations,',') as r
+with n,r,row
+match (m:sentence)
+where id(m) = toInteger(substring(r,0,apoc.text.indexOf(r, ':')))
+merge (n)-[s:similarity{strength:apoc.convert.toFloat(substring(r,apoc.text.indexOf(r, ':')+1))}]-(m)
+
+CALL gds.graph.project('SentencesUndirected','sentence',{similarity:{properties:'strength',orientation:'UNDIRECTED'}})
+
+CALL gds.pageRank.stream('SentencesUndirected',{relationshipWeightProperty: 'strength'})
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).content AS name, score
+ORDER BY score DESC
